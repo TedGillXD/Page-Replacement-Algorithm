@@ -12,6 +12,19 @@ private:
 	vector<int> AccessSequence;
 	int MerorySize;
 
+	vector<Page> GetPageArray(vector<int> Merory) {
+		vector<Page> ret;
+		for (auto item : Merory) {
+			ret.push_back(Page(item, 0, 0));
+		}
+		if ((int)ret.size() < MerorySize) {
+			for (int i = ret.size(); i < MerorySize; i++) {
+				ret.push_back(Page(-1, 0, 0));
+			}
+		}
+		return ret;
+	}
+
 public:
 
 	Processor(vector<int> AccessSequence, int MerorySize) {
@@ -21,36 +34,47 @@ public:
 
 	//先进先出算法
 	Result FIFO() {
+		Result ret;
 		int FaultCount = 0;
 		list<int> Merory;
 		for (int AccessIndex : AccessSequence) {
+			vector<int> MeroryCopy(Merory.begin(), Merory.end());
 			if (std::find(Merory.begin(), Merory.end(), AccessIndex) != Merory.end()) {
+				ret.AddTableInfo(AccessIndex, GetPageArray(MeroryCopy), false);
 				continue;
 			}
 
 			if ((int)Merory.size() < MerorySize) {
 				Merory.push_back(AccessIndex);
-			} else {
+			}
+			else {
 				Merory.pop_front();
 				Merory.push_back(AccessIndex);
 				FaultCount++;
 			}
+			MeroryCopy = vector<int>(Merory.begin(), Merory.end());
+			ret.AddTableInfo(AccessIndex, GetPageArray(MeroryCopy), true);
 		}
-		return Result(FaultCount, (double)FaultCount / (double)AccessSequence.size());
+		ret.SetFaultCount(FaultCount);
+		ret.SetFaultRate((double)FaultCount / (double)AccessSequence.size());
+		return ret;
 	}
 
 	//最佳置换算法
 	Result OPT() {
+		Result ret;
 		int FaultCount = 0;
 		vector<int> Merory;
 		for (int i = 0; i < (int)AccessSequence.size(); i++) {
 			if (std::find(Merory.begin(), Merory.end(), AccessSequence[i]) != Merory.end()) {
+				ret.AddTableInfo(AccessSequence[i], GetPageArray(Merory), false);
 				continue;
 			}
 
 			if ((int)Merory.size() < MerorySize) {
 				Merory.push_back(AccessSequence[i]);
-			} else {
+			}
+			else {
 				FaultCount++;
 				int Target;
 				int Index = -1;
@@ -59,7 +83,8 @@ public:
 					if (it == AccessSequence.end()) {
 						Target = item;
 						break;
-					} else {
+					}
+					else {
 						int NewIndex = distance(AccessSequence.begin(), it);
 						if (NewIndex > Index) {
 							Index = NewIndex;
@@ -73,64 +98,82 @@ public:
 					}
 				}
 			}
+			ret.AddTableInfo(AccessSequence[i], GetPageArray(Merory), true);
 		}
-		return Result(FaultCount, (double)FaultCount / (double)AccessSequence.size());
+		ret.SetFaultCount(FaultCount);
+		ret.SetFaultRate((double)FaultCount / (double)AccessSequence.size());
+		return ret;
 	}
 
 	//时钟算法
 	Result CLOCK() {
+		Result ret;
 		int FaultCount = 0;
 		vector<Page> Merory;
 		int Pointer = 0;
 		for (int AccessIndex : AccessSequence) {
+			vector<Page> MeroryCopy;
 			auto it = std::find(Merory.begin(), Merory.end(), Page(AccessIndex));
 			if (it != Merory.end()) {
+				it->ChangeAccessToOne();
 				Pointer = distance(Merory.begin(), it);
+				MeroryCopy = Merory;
+				MeroryCopy.resize(MerorySize);
+				ret.AddTableInfo(AccessIndex, MeroryCopy, false);
 				continue;
 			}
 
 			if ((int)Merory.size() < MerorySize) {
 				Merory.push_back(Page(AccessIndex));
 				Pointer = 0;
-			} else {
+			}
+			else {
 				FaultCount++;
 				for (int i = 0; i < (int)Merory.size() * 2; i++, Pointer = (Pointer + 1) % Merory.size()) {
 					if (Merory[Pointer].GetAccess() == 0) {
 						Merory[Pointer] = Page(AccessIndex);
 						break;
-					} else {
+					}
+					else {
 						Merory[Pointer].ChangeAccessToZero();
 					}
 				}
 				Pointer = (Pointer + 1) % Merory.size();
 			}
+			MeroryCopy = Merory;
+			MeroryCopy.resize(MerorySize);
+			ret.AddTableInfo(AccessIndex, MeroryCopy, true);
 		}
-		return Result(FaultCount, (double)FaultCount / (double)AccessSequence.size());
+		ret.SetFaultCount(FaultCount);
+		ret.SetFaultRate((double)FaultCount / (double)AccessSequence.size());
+		return ret;
 	}
 
 	//最近未使用
 	Result LRU() {
+		Result ret;
 		int FaultCount = 0;
 		map<int, int> HashMap;
 		vector<int> Merory;
 		for (int i = 0; i < (int)AccessSequence.size(); i++) {
 			if (std::find(Merory.begin(), Merory.end(), AccessSequence[i]) != Merory.end()) {
 				HashMap[AccessSequence[i]] = i;
+				ret.AddTableInfo(AccessSequence[i], GetPageArray(Merory), false);
 				continue;
 			}
 
 			if ((int)Merory.size() < MerorySize) {
 				HashMap[AccessSequence[i]] = i;
 				Merory.push_back(AccessSequence[i]);
-			} else {
+			}
+			else {
 				FaultCount++;
-				auto it = HashMap.begin();
-				int Target = it->first;
-				int Index = it->second;
-				for (auto item : HashMap) {
-					if (item.second < Index) {
-						Target = item.first;
-						Index = item.second;
+				int Target = Merory.front();
+				int Index = HashMap[Merory.front()];
+				for (auto item : Merory) {
+					if (HashMap[item] < Index) {
+						Target = item;
+						Index = HashMap[item];
 					}
 				}
 				for (int j = 0; j < (int)Merory.size(); j++) {
@@ -140,7 +183,10 @@ public:
 					}
 				}
 			}
+			ret.AddTableInfo(AccessSequence[i], GetPageArray(Merory), true);
 		}
-		return Result(FaultCount, (double)FaultCount / (double)AccessSequence.size());
+		ret.SetFaultCount(FaultCount);
+		ret.SetFaultRate((double)FaultCount / (double)AccessSequence.size());
+		return ret;
 	}
 };

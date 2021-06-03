@@ -6,7 +6,7 @@ private:
 	int Modify;	//ÐÞ¸ÄÎ»
 
 public:
-	Page(int PageNumber, int Access = 1, int Modify = 0) {
+	Page(int PageNumber = -1, int Access = 1, int Modify = 0) {
 		this->PageNumber = PageNumber;
 		this->Access = Access;
 		this->Modify = Modify;
